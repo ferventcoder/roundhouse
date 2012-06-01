@@ -54,7 +54,39 @@ namespace roundhouse.infrastructure.filesystem
         /// <returns>A string of the file contents</returns>
         public string read_file_text(string file_path)
         {
-            return File.ReadAllText(file_path, get_file_encoding(file_path));
+            StringBuilder returnValue = new StringBuilder();
+
+            var currentEncoding = get_file_encoding(file_path);
+
+            using (var stream = new FileStream(file_path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            using (StreamReader reader = new StreamReader(stream, currentEncoding, detectEncodingFromByteOrderMarks: false))
+            {
+                // why StreamReader? - http://stackoverflow.com/questions/1261570/c-filestream-read-doesnt-read-the-file-up-to-the-end-but-returns-0
+
+                //byte[] fileBytes = new byte[stream.Length];
+                //stream.Read(fileBytes, 0, fileBytes.Length);
+
+                var contents = reader.ReadToEnd();
+                reader.Close();
+
+                //byte[] buffer = new byte[1024 * 32]; //[1024 * 32] 32KB - or you can go by the megabyte = [1024 * 1024]
+                //int bytesRead =0;
+                //while ((bytesRead = stream.Read(buffer, 0, buffer.Length)) > 0)
+                //{
+                //    returnValue.Append(Encoding.Unicode.GetString(Encoding.Convert(currentEncoding, Encoding.Unicode, buffer), 0, bytesRead));
+                //}
+                stream.Close();
+
+                var unicodeBytes = Encoding.Convert(currentEncoding, Encoding.Unicode, currentEncoding.GetBytes(contents));
+                returnValue.Append(Encoding.Unicode.GetString(unicodeBytes));
+            }
+
+            //string contents = File.ReadAllText(file_path, currentEncoding);
+            //var unicodeBytes = Encoding.Convert(currentEncoding, Encoding.Unicode, currentEncoding.GetBytes(contents));
+
+            return returnValue.ToString();
+
+            //return File.ReadAllText(file_path, currentEncoding);
         }
 
         /// <summary>
@@ -70,9 +102,11 @@ namespace roundhouse.infrastructure.filesystem
 
             // *** Detect byte order mark if any - otherwise assume default
             byte[] buffer = new byte[5];
-            FileStream file = new FileStream(file_path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-            file.Read(buffer, 0, 5);
-            file.Close();
+            using (FileStream file = new FileStream(file_path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            {
+                file.Read(buffer, 0, 5);
+                file.Close();
+            }
 
             if (buffer[0] == 0xef && buffer[1] == 0xbb && buffer[2] == 0xbf)
                 enc = Encoding.UTF8;
@@ -357,20 +391,20 @@ namespace roundhouse.infrastructure.filesystem
         public string[] get_all_file_name_strings_in(string directory, string pattern)
         {
             string[] returnList = Directory.GetFiles(directory, pattern);
-			return returnList.OrderBy(get_file_name_from).ToArray();
+            return returnList.OrderBy(get_file_name_from).ToArray();
         }
 
-		/// <summary>
-		/// Gets a list of all files inside of an existing directory, includes files in subdirectories also
-		/// </summary>
-		/// <param name="directory">Path to the directory</param>
-		/// <param name="pattern">Pattern or extension</param>
-		/// <returns>A list of files inside of an existing directory</returns>
-		public string[] get_all_file_name_strings_recurevly_in(string directory, string pattern)
-		{
-			string[] returnList = Directory.GetFiles(directory, pattern, SearchOption.AllDirectories);
-			return returnList.OrderBy(get_file_name_from).ToArray();
-		}
+        /// <summary>
+        /// Gets a list of all files inside of an existing directory, includes files in subdirectories also
+        /// </summary>
+        /// <param name="directory">Path to the directory</param>
+        /// <param name="pattern">Pattern or extension</param>
+        /// <returns>A list of files inside of an existing directory</returns>
+        public string[] get_all_file_name_strings_recurevly_in(string directory, string pattern)
+        {
+            string[] returnList = Directory.GetFiles(directory, pattern, SearchOption.AllDirectories);
+            return returnList.OrderBy(get_file_name_from).ToArray();
+        }
 
         #endregion
 
